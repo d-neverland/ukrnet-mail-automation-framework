@@ -1,0 +1,70 @@
+name: UI Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: TestNG suite file
+        required: true
+        default: src/test/resources/suites/smoke.xml
+      browser:
+        description: Browser to run
+        required: true
+        default: CHROME
+      env:
+        description: Environment name
+        required: true
+        default: qa
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run TestNG suite
+        run: |
+          SUITE="${{ github.event.inputs.suite }}"
+          BROWSER="${{ github.event.inputs.browser }}"
+          ENVIRONMENT="${{ github.event.inputs.env }}"
+
+          [ -n "$SUITE" ] || SUITE="src/test/resources/suites/smoke.xml"
+          [ -n "$BROWSER" ] || BROWSER="CHROME"
+          [ -n "$ENVIRONMENT" ] || ENVIRONMENT="qa"
+
+          mvn clean test -DsuiteXmlFile="$SUITE" -Dbrowser="$BROWSER" -Denv="$ENVIRONMENT" -Dheadless=true
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: target/surefire-reports/*.xml
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshots
+          path: target/screenshots
+          if-no-files-found: ignore
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: target/logs
+          if-no-files-found: ignore
